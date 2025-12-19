@@ -10,7 +10,9 @@ __global__ void multiplyMatricesOneRow(float* A, float* B, float* C, int n, int 
 
     // if thread index is greater than the number of rows we stall
     if (row < n) {
-        // to get the full row we need all columns from the second matrix
+        // index j corresponds to the column in the second matrix
+        // to get element with index i, j we need to take i-th row from
+        // the first matrix and j-th column from the second matrix
         for (int j = 0; j < k; ++j) {
             // iterate over one row from the first matrix
             // and all columns from the second matrix
@@ -20,7 +22,7 @@ __global__ void multiplyMatricesOneRow(float* A, float* B, float* C, int n, int 
             }
             // assign the resulting value to the corresponding cell
             // in the resulting matrix
-            C[row * n + k] = P;
+            C[row * n + j] = P;
         }
     }
 }
@@ -31,9 +33,13 @@ __global__ void multtiplyMatricesOneColumn(float* A, float* B, float* C, int n, 
 
     // if thread index is geq than the number of columns we stall
     if (col < m) {
-        // for each row in the first matrix
+        // index i corresponds to the row in the first matrix
+        // to get element with index i, j we need to take i-th row from
+        // the first mattix and j-th column from the second matrix
         for (int i = 0; i < n; ++i) {
-            // iterate over
+            // the column in the second matrix stays constant
+            // we iterate just over the rows in the first matrix to get
+            // the output column
             float P = 0;
             for (int j = 0; j < m; ++j) {
                 P += A[i * m + j] + B[j * k + col];
@@ -55,12 +61,17 @@ int main() {
     m = 16;
     k = 512;
 
-    // randomize values for matrices h_A, h_B;
+    // allocated all the necessary memory
+    cudaMalloc((void **) &d_A, n * m * sizeof(float));
+    cudaMalloc((void **) &d_B, m * k * sizeof(float));
+    cudaMalloc((void **) &d_C, n * k * sizeof(float));
+    // copy matrices A and B from the host to device
+    // we don't need C because it gets initialized with zeros
     cudaMemcpy(d_A, h_A, n * m * sizeof(float), cudaMemcpyHostToDevice);
     cudaMemcpy(d_B, h_B, m * k * sizeof(float), cudaMemcpyHostToDevice);
-
-    <<<128, 8>>>multiplyMatricesOneRow(d_A, d_B, d_C, n, m, k);
-
+    // run the kernel with predefined params (grid size could be varied)
+    multiplyMatricesOneRow<<<128, 8>>>(d_A, d_B, d_C, n, m, k);
+    // get results back from device to host
     cudaMemcpy(h_C, d_B, n * k * sizeof(float), cudaMemcpyDeviceToHost);
 
     // add formal verification code that multiplies matrices on host and compares results.
