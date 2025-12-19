@@ -3,6 +3,7 @@
 // A: n x 1
 // B: n x m
 // C: m x 1
+// pretty trival kernel
 __global__ void matrixVecMul(
         float *A, float *B, float *C, 
         int n, int m
