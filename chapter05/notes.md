@@ -1,6 +1,6 @@
 cuda memory model and all kinds of memories - (memories by david guetta and kid cudi)
 
-this fucking performance graph once again
+this fucking performance graph once again - add a picture with explanation
 
 write tiling kernel myself to better grasp all the beauty of it. i think i understand but the understanding is a tricky thing. 
 
@@ -12,7 +12,7 @@ true and false deps in parallel algorithms
 read-after-write
 write-after-read
 
-write a kernell that matmuls two matrices that are not the size of the tile
+write a kernel that matmuls two matrices that are not the size of the tile
 
 extend the logic to cover the general case matrices
 
