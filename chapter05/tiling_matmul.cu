@@ -78,7 +78,7 @@ __global__ void sharedMemTiledMatmul (
     float P_val = 0;
     for (int tile_idx = 0; tile_idx < N / TILE_SIZE; ++tile_idx) {
         // first axis calculations:
-        // by * TILE_SIZE - how many rows we need to skip to get to the start of the tile
+        // by * TILE_SIZE * N - how many rows we need to skip to get to the start of the tile
         // ty * N - on which row we are currently
         // second axis calcualtions:
         // tile_idx * TILE_SIZE - how far we are from the beginning of the row in absolute terms
@@ -101,4 +101,34 @@ __global__ void sharedMemTiledMatmul (
         __syncthreads();
     }
     C[row * N + col] = P_val;
+}
+
+// for this kernel we assume that N, M, K are all divisible by TILE_SIZE, that is
+// N % TILE_SIZE == 0, M % TILE_SIZE == 0, K % TILE_SIZE == 0
+// it seems right after writing the kernel that there is no need in N
+__global__ void sharedMemTiledMatmulArbSizes(
+        float *A, float *B, float *C,
+        int N, int M, int K
+        ) {
+    const int bx = blockIdx.x; const int tx = threadIdx.x;
+    const int by = blockIdx.y; const int ty = threadIdx.y;
+
+    __shared__ float Ta[TILE_SIZE][TILE_SIZE];
+    __shared__ float Tb[TILE_SIZE][TILE_SIZE];
+
+    const int col = bx * TILE_SIZE + tx;
+    const int row = by * TILE_SIZE + ty;
+
+    float P_val = 0;
+    for (int tile_idx = 0; tile_idx < M / TILE_SIZE; ++tile_idx) {
+        Ta[ty][tx] = A[(by * TILE_SIZE * M + ty * M) + (tile_idx * TILE_SIZE + tx)];
+        Tb[ty][tx] = B[(tile_idx * TILE_SIZE * K + ty * K) + col];
+        __syncthreads();
+
+        for (int i = 0; i < TILE_SIZE; ++i) {
+            P_val += Ta[ty][i] * Tb[i][tx];
+        }
+        __syncthreads();
+    }
+    C[row * K + col] = P_val;
 }
