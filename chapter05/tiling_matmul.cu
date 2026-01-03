@@ -1,5 +1,8 @@
 #include <iostream>
 
+// TILE_SIZE should be known on compilation to work correctly with shared memory
+#define TILE_SIZE 16
+
 
 // square case tiled matmul 
 // A /in N x N, B /in N x N, C /in N x N
@@ -32,7 +35,7 @@ __global__ void naiveMatmul(
 // this approach is a little bit better than the last because we decrease the number of memory reads using coalescing
 __global__ void naiveTiledMatmul(
     float* A, float *B, float *C,
-    int N, int TILE_SIZE
+    int N
     ) {
     // index of the tile that we calculate
     const int row_idx = blockDim.x * blockIdx.x + threadIdx.x;
@@ -51,4 +54,51 @@ __global__ void naiveTiledMatmul(
     }
 }
 
+// errors while working on this kernel
+// not drawing a picture from the start
+// incorrectly naming column and row because thought about them in the order of occurance
+// used flat indexing inside of the inner loop
+// went through indexing in shared matrices by vibe, should have deconstructed them and worked with them by hand
+__global__ void sharedMemTiledMatmul (
+        float *A, float *B, float *C, int N
+        ) {
+    // find the coordinates of the thread in the grid
+    const int bx = blockIdx.x; const int tx = threadIdx.x;
+    const int by = blockIdx.y; const int ty = threadIdx.y;
 
+    // inititialize shared memory for loading tiles from matrices A and B
+    __shared__ float Ta[TILE_SIZE][TILE_SIZE];
+    __shared__ float Tb[TILE_SIZE][TILE_SIZE];
+
+    // find out the index of output element that is being calculated relative to the start of the matrix
+    const int row = by * TILE_SIZE + ty;
+    const int col = bx * TILE_SIZE + tx;
+
+    // initialize the element to hold the results of calculations
+    float P_val = 0;
+    for (int tile_idx = 0; tile_idx < N / TILE_SIZE; ++tile_idx) {
+        // first axis calculations:
+        // by * TILE_SIZE - how many rows we need to skip to get to the start of the tile
+        // ty * N - on which row we are currently
+        // second axis calcualtions:
+        // tile_idx * TILE_SIZE - how far we are from the beginning of the row in absolute terms
+        // tx - the index of the concrete element in this row
+        Ta[ty][tx] = A[(by * TILE_SIZE * N + ty * N) + (tile_idx * TILE_SIZE + tx)];
+
+        // first axis calculations:
+        // tile_idx * TILE_SIZE * N - how many rows we need to skip to get to the start of the tile
+        // ty * N - on which row we are currently
+        // second axis calculations:
+        // bx * TILE_SIZE - how far tile starts from the beginning of the row in absolute terms
+        // tx - the index of the concrete element in this row
+        Tb[ty][tx] = B[(tile_idx * TILE_SIZE * N + ty * N) + (bx * TILE_SIZE + tx)];
+        __syncthreads();
+
+        // for the inner loop we abuse the fact that Ta and Tb are 2D arrays
+        for (int i = 0; i < TILE_SIZE; i++) {
+            P_val += Ta[ty][i] * Tb[i][tx];
+        }
+        __syncthreads();
+    }
+    C[row * N + col] = P_val;
+}
