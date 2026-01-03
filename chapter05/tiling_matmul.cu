@@ -106,7 +106,7 @@ __global__ void sharedMemTiledMatmul (
 // for this kernel we assume that N, M, K are all divisible by TILE_SIZE, that is
 // N % TILE_SIZE == 0, M % TILE_SIZE == 0, K % TILE_SIZE == 0
 // it seems right after writing the kernel that there is no need in N
-__global__ void sharedMemTiledMatmulArbSizes(
+__global__ void sharedMemTiledMatmulArbDivSizes(
         float *A, float *B, float *C,
         int N, int M, int K
         ) {
@@ -131,4 +131,44 @@ __global__ void sharedMemTiledMatmulArbSizes(
         __syncthreads();
     }
     C[row * K + col] = P_val;
+}
+
+
+// for this kernel we make no assumptions N, M, K - they could be arbitrary
+__global__ void sharedMemTiledMatmulArbSizes(
+        float *A, float *B, float *C,
+        int N, int M, int K
+        ) {
+    const int bx = blockIdx.x; const int tx = threadIdx.x;
+    const int by = blockIdx.y; const int ty = threadIdx.y;
+
+    const int col = bx * TILE_SIZE + tx;
+    const int row = by * TILE_SIZE + ty;
+
+    __shared__ float Ta[TILE_SIZE][TILE_SIZE];
+    __shared__ float Tb[TILE_SIZE][TILE_SIZE];
+
+    float P_val = 0;
+    for (int tile_idx = 0; tile_idx < (M + TILE_SIZE - 1) / TILE_SIZE; ++tile_idx) {
+        if (by * TILE_SIZE + ty < N && tile_idx * TILE_SIZE + tx < M) {
+            Ta[ty][tx] = A[(by * TILE_SIZE * M + ty * M) + (tile_idx * TILE_SIZE + tx)];
+        } else {
+            Ta[ty][tx] = 0;
+        }
+        if ((tile_idx * TILE_SIZE + ty) < M && col < K) {
+            Tb[ty][tx] = B[(tile_idx * TILE_SIZE * K + ty * K) + col];
+        } else {
+            Tb[ty][tx] = 0.0;
+        }
+        __syncthreads();
+
+        for (int i = 0; i < TILE_SIZE; ++i) {
+            P_val += Ta[ty][i] * Tb[i][tx];
+        }
+        __syncthreads();
+    }
+
+    if (row < N && col < K) {
+        C[row * K + col] = P_val;
+    }
 }
