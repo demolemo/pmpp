@@ -3,7 +3,6 @@
 // TILE_SIZE should be known on compilation to work correctly with shared memory
 #define TILE_SIZE 16
 
-
 // square case tiled matmul 
 // A /in N x N, B /in N x N, C /in N x N
 // for the simple case we assume that N % TILE_SIZE == 0
@@ -19,7 +18,7 @@
 // each thread calculates one output element without tiling
 // the problem with this approch is too low utilization of the GPU. we are doing too little ops and too many reads
 __global__ void naiveMatmul(
-    float* A, float* B, float* C, int N
+    const float* A, const float* B, float* C, int N
     ){
     const int row_idx = blockDim.x * blockIdx.x + threadIdx.x;
     const int col_idx = blockDim.y * blockIdx.y + threadIdx.y;
@@ -34,7 +33,7 @@ __global__ void naiveMatmul(
 // each thread calculates the whole tile in the output matrix
 // this approach is a little bit better than the last because we decrease the number of memory reads using coalescing
 __global__ void naiveTiledMatmul(
-    float* A, float *B, float *C,
+    const float* A, const float *B, float *C,
     int N
     ) {
     // index of the tile that we calculate
@@ -60,7 +59,7 @@ __global__ void naiveTiledMatmul(
 // used flat indexing inside of the inner loop
 // went through indexing in shared matrices by vibe, should have deconstructed them and worked with them by hand
 __global__ void sharedMemTiledMatmul (
-        float *A, float *B, float *C, int N
+        const float *A, const float *B, float *C, int N
         ) {
     // find the coordinates of the thread in the grid
     const int bx = blockIdx.x; const int tx = threadIdx.x;
@@ -107,7 +106,7 @@ __global__ void sharedMemTiledMatmul (
 // N % TILE_SIZE == 0, M % TILE_SIZE == 0, K % TILE_SIZE == 0
 // it seems right after writing the kernel that there is no need in N
 __global__ void sharedMemTiledMatmulArbDivSizes(
-        float *A, float *B, float *C,
+        const float *A, const float *B, float *C,
         int N, int M, int K
         ) {
     const int bx = blockIdx.x; const int tx = threadIdx.x;
@@ -136,7 +135,7 @@ __global__ void sharedMemTiledMatmulArbDivSizes(
 
 // for this kernel we make no assumptions N, M, K - they could be arbitrary
 __global__ void sharedMemTiledMatmulArbSizes(
-        float *A, float *B, float *C,
+        const float *A, const float *B, float *C,
         int N, int M, int K
         ) {
     const int bx = blockIdx.x; const int tx = threadIdx.x;
