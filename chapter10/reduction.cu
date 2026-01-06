@@ -42,9 +42,9 @@ __global__ void reductionSumMemPattern(float* input, float *output) {
 // to store intermediate results to reduce overall global memory traffic
 // also this allows us to not modify the input array which is good practice
 __global__ void reductionSumMemPatternSharedMem(const float *input, float* output) {
-    const int idx = threadIdx.x;
-
     __shared__ float input_s[blockDim.x];
+
+    const int idx = threadIdx.x;
     input_s[idx] = input[idx] + input[idx + blockDim.x];
 
     for (unsigned int stride = blockDim.x / 2; stride >= 1; stride /= 2) {
@@ -57,6 +57,27 @@ __global__ void reductionSumMemPatternSharedMem(const float *input, float* outpu
 
     if (idx == 0) {
         *output = input_s[0];
+    }
+}
+
+// creating a global recution tree that scales to an arbitrary number of threadblocks
+// but is very insefficient in terms of hardware utilization on the final stages
+__global__ void reductionSumSharedMemBlocks(const float* input, float* output) {
+    __shared__ float input_s[blockDim.x];
+
+    unsigned int GLOBAL_STRIDE = 2 * blockDim.x * blockIdx.x;
+    const int idx = GLOBAL_STRIDE + threadIdx.x;
+    input_s[idx] = input[idx] + input[idx + blockDim.x];
+
+    for (unsigned int stride = blockDim.x / 2; stride >= 1; stride /= 2) {
+        __syncthreads();
+        if (idx < GLOBAL_STRIDE + stride) {
+            input_s[idx] = input_s[idx] + input_s[idx + stride];
+        }
+    }
+
+    if (idx % GLOBAL_STRIDE == 0) {
+        atomicAdd(output, input_s[0]);
     }
 }
 
