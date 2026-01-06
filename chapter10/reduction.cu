@@ -8,7 +8,10 @@ __global__ void naiveReductionSum(float *input, float *output) {
     //  first iteration 1 0 1 0 1 0 1 0 
     // second iteration 1 0 0 0 1 0 0 0 
     for (int stride = 1; stride <= blockDim.x; stride *= 2) {
-        if (idx % stride == 0) {
+        // here we had a mistake due to assuming that threadIdx.x == idx
+        // i think the following code would be more straightforward
+        // the confusion comes from the initial threads being mutliplied by 2
+        if (idx % (stride * 2) == 0) {
             input[idx] += input[idx + stride];
         }
         __syncthreads();
@@ -80,4 +83,7 @@ __global__ void reductionSumSharedMemBlocks(const float* input, float* output) {
         atomicAdd(output, input_s[0]);
     }
 }
+
+// write coarsening kernel after a little while to refresh what just read in memory
+// __global__
 
